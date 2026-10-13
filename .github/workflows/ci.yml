@@ -1,0 +1,36 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifiesto
+        shell: pwsh
+        run: Test-ModuleManifest ./DriverTriage/DriverTriage.psd1
+      - name: Configurar PSGallery e Instalar Dependencias
+        shell: pwsh
+        run: |
+          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+            Register-PSRepository -Default
+          }
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -MinimumVersion 1.21 -Force -Scope CurrentUser
+          Invoke-ScriptAnalyzer -Path ./DriverTriage -Recurse -Severity Warning,Error -EnableExit
+      - name: Pester
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser -SkipPublisherCheck
+          Invoke-Pester ./tests -CI
+      - name: Demo end-to-end (fixtures sinteticas, sin binarios reales)
+        shell: pwsh
+        run: |
+          Import-Module ./DriverTriage/DriverTriage.psd1
+          . ./tests/Helpers/New-SyntheticDriverPE.ps1
+          New-SyntheticDriverPE -Path ./tests/data/vulnerable-like.sys -Imports @(@{Dll='ntoskrnl.exe';Functions=@('MmMapIoSpace','ZwTerminateProcess','IoCreateDevice','ZwOpenProcess')},@{Dll='hal.dll';Functions=@('READ_PORT_UCHAR')}) -WideStrings @('\Device\PhysicalMemory') -OpcodeSequences @(,[byte[]](0x0F,0x32))
+          New-SyntheticDriverPE -Path ./tests/data/benign-like.sys -Imports @(@{Dll='ntoskrnl.exe';Functions=@('ZwCreateFile','ZwWriteFile','IoCreateDeviceSecure','IoCreateSymbolicLink')})
+          $r = Invoke-DriverTriageScan -Path ./tests/data -OutputDirectory ./out -IncludeClean
+          $r | Format-List ScannedCount, BySeverity
+          Measure-DriverTriageAccuracy -Result $r.Results -LabelsPath ./tests/data/labels.sample.json | Format-List

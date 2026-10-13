@@ -1,0 +1,6 @@
+drivertriage-out/
+out/
+*.html
+findings*.json
+tests/data/*.sys
+!tests/data/labels.sample.json

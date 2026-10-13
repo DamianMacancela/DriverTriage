@@ -1,0 +1,3 @@
+Name,Sha256,Source,Note
+rtcore64.sys,,loldrivers.io,"MUESTRA de solo unas pocas entradas para probar el pipeline. NO es un feed completo. Sustituye este archivo por el feed completo de https://www.loldrivers.io/ (o el bloqueo de Microsoft) antes de usar en produccion."
+gdrv.sys,,loldrivers.io,"Ver nota anterior: entrada de ejemplo, sin hash verificado en este repo."
