@@ -29,29 +29,70 @@ flowchart LR
   S --> M[Measure-DriverTriageAccuracy<br/>sobre corpus etiquetado]
 ```
 
-## Instalación y primer uso
+## Instalación y Guía de Uso Paso a Paso
+
+> [!NOTE]
+> **Asegúrate de situarte en la raíz del repositorio.** Si abres PowerShell con permisos de Administrador, la consola iniciará por defecto en `C:\WINDOWS\system32`. Debes navegar (`cd`) hasta la carpeta donde clonaste o descargaste el proyecto antes de ejecutar las rutas relativas.
+
+### Paso 1. Clonar y posicionarse en el proyecto
 
 ```powershell
-Import-Module .\DriverTriage\DriverTriage.psd1
+git clone https://github.com/DamianMacancela/DriverTriage.git
+cd DriverTriage
+```
 
-# Demo sin drivers reales: genera 2 fixtures SINTETICAS y las analiza
+*(Si descargaste el repositorio como ZIP, descomprímelo y ejecuta `Set-Location "C:\ruta\hacia\DriverTriage"`).*
+
+---
+
+### Paso 2. Importar el módulo en tu sesión
+
+```powershell
+Import-Module .\DriverTriage\DriverTriage.psd1 -Force
+```
+
+---
+
+### Paso 3. Demo guiada con binarios sintéticos (100% seguro)
+
+Para probar la herramienta **sin necesidad de interactuar con drivers reales ni poner en riesgo el sistema**, puedes usar el generador de ejecutables PE sintéticos incluido en el repositorio. Este script compila en memoria dos archivos `.sys` ficticios en bytes crudos: uno que replica las características de un driver vulnerable (*vulnerable-like*) y otro con imports estándar benignos (*benign-like*).
+
+```powershell
+# 1. Cargar el generador sintético
 . .\tests\Helpers\New-SyntheticDriverPE.ps1
+
+# 2. Construir fixture que simula un driver vulnerable tipo BYOVD
 New-SyntheticDriverPE -Path .\tests\data\vulnerable-like.sys `
     -Imports @(@{Dll='ntoskrnl.exe';Functions=@('MmMapIoSpace','ZwTerminateProcess','IoCreateDevice','ZwOpenProcess')},@{Dll='hal.dll';Functions=@('READ_PORT_UCHAR')}) `
     -WideStrings @('\Device\PhysicalMemory') -OpcodeSequences @(,[byte[]](0x0F,0x32))
+
+# 3. Construir fixture que simula un driver legítimo y benigno
 New-SyntheticDriverPE -Path .\tests\data\benign-like.sys `
     -Imports @(@{Dll='ntoskrnl.exe';Functions=@('ZwCreateFile','ZwWriteFile','IoCreateDeviceSecure','IoCreateSymbolicLink')})
 
+# 4. Ejecutar el escaneo de auditoría
 $r = Invoke-DriverTriageScan -Path .\tests\data -OutputDirectory .\out -IncludeClean
+
+# 5. Visualizar la tabla de resultados y abrir el reporte HTML
 $r.Results | Format-Table FileName, Score, Severity
 Start-Process .\out\report.html
 ```
 
-**Sobre un sistema real (Windows):**
+---
+
+### Paso 4. Escaneo sobre un sistema Windows real
+
+Una vez validado el funcionamiento, puedes auditar entornos vivos:
 
 ```powershell
-Invoke-DriverTriageScan -UseSystemInventory -OutputDirectory .\out        # drivers cargados ahora mismo
-Invoke-DriverTriageScan -Path C:\Windows\System32\drivers -OutputDirectory .\out   # todo el store
+# Escanear los drivers actualmente cargados en memoria del sistema operativo:
+Invoke-DriverTriageScan -UseSystemInventory -OutputDirectory .\out
+
+# Escanear el almacén completo de drivers en disco de Windows:
+Invoke-DriverTriageScan -Path C:\Windows\System32\drivers -OutputDirectory .\out
+
+# Abrir el informe generado con sanitización anti-XSS:
+Start-Process .\out\report.html
 ```
 
 ## Cómo se calcula el puntaje
