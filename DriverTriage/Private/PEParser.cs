@@ -235,5 +235,31 @@ namespace DriverTriage
             }
             return sb.ToString();
         }
+
+        public static int CountBytePattern(byte[] haystack, byte[] pattern, int start, int end)
+        {
+            if (haystack == null || pattern == null || pattern.Length == 0) return 0;
+            if (end < 0 || end > haystack.Length) end = haystack.Length;
+            int count = 0;
+            int lastByte = end - pattern.Length;
+            for (int i = start; i <= lastByte; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < pattern.Length; j++)
+                {
+                    if (haystack[i + j] != pattern[j])
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match)
+                {
+                    count++;
+                    i += pattern.Length - 1;
+                }
+            }
+            return count;
+        }
     }
 }

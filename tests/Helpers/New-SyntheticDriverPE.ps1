@@ -200,6 +200,12 @@ function New-SyntheticDriverPE {
     Add-Bytes $file $idataFinal
     Pad-To $file ($idataRawOff + $idataRawSize)
 
-    [IO.File]::WriteAllBytes($Path, $file.ToArray())
-    Get-Item -LiteralPath $Path
+    $resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+    $parentDir = [System.IO.Path]::GetDirectoryName($resolvedPath)
+    if (-not [string]::IsNullOrEmpty($parentDir) -and -not [System.IO.Directory]::Exists($parentDir)) {
+        [System.IO.Directory]::CreateDirectory($parentDir) | Out-Null
+    }
+
+    [System.IO.File]::WriteAllBytes($resolvedPath, $file.ToArray())
+    Get-Item -LiteralPath $resolvedPath
 }

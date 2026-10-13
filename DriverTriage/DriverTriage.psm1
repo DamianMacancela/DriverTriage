@@ -9,6 +9,8 @@ foreach ($dir in 'Private', 'Public') {
     foreach ($f in $files) { . $f.FullName }
 }
 
+Initialize-DtNative
+
 Export-ModuleMember -Function `
     Get-DriverInventory, Get-DriverPEInfo, Get-DriverCapabilityScore, Get-DriverExposure, Get-DriverTrust, `
     Get-DriverRiskScore, Compare-DriverAgainstKnownList, Invoke-DriverTriageScan, Export-DriverTriageReport, `

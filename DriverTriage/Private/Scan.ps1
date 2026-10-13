@@ -6,6 +6,10 @@ function Find-DtBytePattern {
     [CmdletBinding()]
     param([Parameter(Mandatory)][byte[]]$Haystack, [Parameter(Mandatory)][byte[]]$Pattern, [int]$Start = 0, [int]$End = -1)
     if ($End -lt 0) { $End = $Haystack.Length }
+    $parserType = 'DriverTriage.PEParser' -as [type]
+    if ($parserType) {
+        return $parserType::CountBytePattern($Haystack, $Pattern, $Start, $End)
+    }
     $count = 0
     $i = $Start
     $lastByte = $End - $Pattern.Length
@@ -16,7 +20,7 @@ function Find-DtBytePattern {
         }
         if ($match) { $count++; $i += $Pattern.Length } else { $i++ }
     }
-    $count
+    return $count
 }
 
 function Find-DtOpcodePattern {
@@ -29,15 +33,22 @@ function Find-DtOpcodePattern {
     [CmdletBinding()]
     param([Parameter(Mandatory)][byte[]]$Bytes, [Parameter(Mandatory)][object[]]$Sections, [Parameter(Mandatory)][object[]]$Patterns)
     $execSections = @($Sections | Where-Object IsExecutable)
+    $parserType = 'DriverTriage.PEParser' -as [type]
     foreach ($p in $Patterns) {
         $total = 0
+        $patBytes = [byte[]]$p.Bytes
         foreach ($s in $execSections) {
             $start = [int]$s.PointerToRawData
             $len = [int][Math]::Min($s.SizeOfRawData, $s.VirtualSize)
             if ($len -le 0) { $len = [int]$s.SizeOfRawData }
             $end = [Math]::Min($Bytes.Length, $start + $len)
             if ($start -ge $end) { continue }
-            $total += Find-DtBytePattern -Haystack $Bytes -Pattern ([byte[]]$p.Bytes) -Start $start -End $end
+            if ($parserType) {
+                $total += $parserType::CountBytePattern($Bytes, $patBytes, $start, $end)
+            }
+            else {
+                $total += Find-DtBytePattern -Haystack $Bytes -Pattern $patBytes -Start $start -End $end
+            }
         }
         if ($total -gt 0) {
             [pscustomobject]@{ Name = $p.Name; Count = $total; Weight = $p.Weight; Mitre = $p.Mitre }
@@ -53,10 +64,17 @@ function Find-DtDangerousString {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][byte[]]$Bytes, [Parameter(Mandatory)][object[]]$Patterns)
+    $parserType = 'DriverTriage.PEParser' -as [type]
     foreach ($p in $Patterns) {
         $asciiPattern = [Text.Encoding]::ASCII.GetBytes([string]$p.Text)
         $widePattern = [Text.Encoding]::Unicode.GetBytes([string]$p.Text)
-        $hits = (Find-DtBytePattern -Haystack $Bytes -Pattern $asciiPattern) + (Find-DtBytePattern -Haystack $Bytes -Pattern $widePattern)
+        $hits = 0
+        if ($parserType) {
+            $hits = $parserType::CountBytePattern($Bytes, $asciiPattern, 0, $Bytes.Length) + $parserType::CountBytePattern($Bytes, $widePattern, 0, $Bytes.Length)
+        }
+        else {
+            $hits = (Find-DtBytePattern -Haystack $Bytes -Pattern $asciiPattern) + (Find-DtBytePattern -Haystack $Bytes -Pattern $widePattern)
+        }
         if ($hits -gt 0) {
             [pscustomobject]@{ Text = $p.Text; Count = $hits; Weight = $p.Weight; Category = $p.Category; Mitre = $p.Mitre }
         }

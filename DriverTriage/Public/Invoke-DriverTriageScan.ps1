@@ -24,7 +24,14 @@ function Invoke-DriverTriageScan {
     $findings = [System.Collections.Generic.List[object]]::new()
     $errors = [System.Collections.Generic.List[object]]::new()
 
+    $totalCount = $files.Count
+    $index = 0
+
     foreach ($f in $files) {
+        $index++
+        if ($totalCount -gt 3) {
+            Write-Progress -Activity 'DriverTriage: Analizando drivers' -Status "[$index / $totalCount] $($f.Name)" -PercentComplete ([int](($index / $totalCount) * 100))
+        }
         $info = $null
         try { $info = Get-DriverPEInfo -Path $f.FullName } catch { $info = $null }
         if (-not $info -or -not $info.Success) {
@@ -77,10 +84,15 @@ function Invoke-DriverTriageScan {
         }
     }
 
+    if ($totalCount -gt 3) {
+        Write-Progress -Activity 'DriverTriage: Analizando drivers' -Completed
+    }
+
     $findings = @($findings | Sort-Object @{ Expression = { Get-DtSeverityRank $_.Severity }; Descending = $true })
-    if (-not (Test-Path -LiteralPath $OutputDirectory)) { New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null }
-    $jsonPath = Join-Path $OutputDirectory 'findings.json'
-    $htmlPath = Join-Path $OutputDirectory 'report.html'
+    $resolvedOutDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
+    if (-not (Test-Path -LiteralPath $resolvedOutDir)) { New-Item -ItemType Directory -Path $resolvedOutDir -Force | Out-Null }
+    $jsonPath = Join-Path $resolvedOutDir 'findings.json'
+    $htmlPath = Join-Path $resolvedOutDir 'report.html'
 
     $resultsForJson = $results | Select-Object Path, FileName, Sha256, FileSizeBytes, Is64Bit, Subsystem, IsDriverLike, ImportParseTruncated, CapabilityHits, CapabilitySubtotal, Exposure, Trust, Score, Severity, Breakdown, KnownListMatch
     ConvertTo-Json -InputObject $resultsForJson -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
