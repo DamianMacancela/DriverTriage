@@ -25,6 +25,26 @@ function Get-DriverCapabilityScore {
         }
     }
 
+    if ($Info.Sections) {
+        $rwxWeight = 4
+        $rwxCategory = 'WritableExecutableSection'
+        $rwxMitre = 'T1055'
+        if ($Config.StructuralWeights -and $Config.StructuralWeights.RWXSection) {
+            $rwxWeight = $Config.StructuralWeights.RWXSection.Weight
+            $rwxCategory = $Config.StructuralWeights.RWXSection.Category
+            $rwxMitre = $Config.StructuralWeights.RWXSection.Mitre
+        }
+        foreach ($sec in ($Info.Sections | Where-Object { $_.IsRWX })) {
+            $hits.Add([pscustomobject]@{
+                Source   = 'Section'
+                Detail   = "RWX Section '$($sec.Name)'"
+                Category = $rwxCategory
+                Weight   = $rwxWeight
+                Mitre    = $rwxMitre
+            })
+        }
+    }
+
     $subtotal = 0.0
     foreach ($h in $hits) { $subtotal += [double]$h.Weight }
 

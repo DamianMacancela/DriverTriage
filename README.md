@@ -107,6 +107,9 @@ puntaje = (Σ pesos de capacidad detectada) × multiplicador_exposición × mult
 | Import `ZwTerminateProcess` | Terminación de proceso (abuso típico anti-EDR) | 4 |
 | Cadena `\Device\PhysicalMemory` | Indicador clásico de BYOVD | 5 |
 | Opcode `RDMSR`/`WRMSR` en sección ejecutable | Acceso a registros de modelo específico | 2 |
+| Sección RWX (violación W^X) | Código ejecutable en sección modificable | 4 |
+| Import `MmGetSystemRoutineAddress` | Mitigación contra evasión por resolución dinámica | 3 |
+| Import `ZwLoadDriver` | Carga de controladores en espacio de kernel | 4 |
 | `IoCreateDevice` sin `IoCreateDeviceSecure` | Dispositivo sin control de acceso declarado | ×1.5 |
 | Sin firma o firma inválida | Reduce la confianza en el binario | ×1.3 |
 
@@ -164,6 +167,12 @@ Invoke-ScriptAnalyzer .\DriverTriage -Recurse
 
 El parser de PE es C# puro compilado vía `Add-Type` (`DriverTriage/Private/PEParser.cs`): lee bytes de
 archivo directamente, sin mapear el binario en memoria ni ejecutar nada.
+
+## Despliegue Seguro y Hardening (AppSec)
+
+Para despliegues en entornos de producción o multiusuario:
+- **Ruta de instalación administrativa:** Se recomienda instalar o ubicar el módulo en directorios protegidos por el sistema (`$env:ProgramFiles\PowerShell\Modules` o `$env:ProgramFiles\WindowsPowerShell\Modules`), donde las listas de control de acceso (ACLs) exigen privilegios de Administrador para escritura, evitando vectores de DLL hijacking o manipulación maliciosa de scripts por usuarios no privilegiados.
+- **Principio de menor privilegio:** DriverTriage opera en modo de **estricta solo lectura**. No requiere permisos de escritura en el registro ni en las carpetas de drivers del sistema analizado (únicamente requiere escritura sobre la ruta de salida especificada en `-OutputDirectory`).
 
 ## Roadmap
 

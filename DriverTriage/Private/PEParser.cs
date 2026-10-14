@@ -18,6 +18,7 @@ namespace DriverTriage
         public uint Characteristics;
         public bool IsExecutable { get { return (Characteristics & 0x20000000) != 0; } }
         public bool IsWritable   { get { return (Characteristics & 0x80000000) != 0; } }
+        public bool IsRWX        { get { return IsExecutable && IsWritable; } }
     }
 
     public sealed class PEImportFunction

@@ -19,10 +19,24 @@ $results = Get-Content -LiteralPath $FindingsJsonPath -Raw | ConvertFrom-Json
 $targets = @($results | Where-Object { $_.Score -ge $MinScore })
 if ($targets.Count -eq 0) { Write-Warning "Ningun driver supera el puntaje minimo ($MinScore)."; return }
 
-$tmpDir = Join-Path $env:TEMP ("wdac-audit-" + [guid]::NewGuid())
+$tmpDir = Join-Path $env:TEMP ("wdac-audit-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
-foreach ($t in $targets) { Copy-Item -LiteralPath $t.Path -Destination $tmpDir -ErrorAction SilentlyContinue }
 
-New-CIPolicy -FilePath $OutputPath -ScanPath $tmpDir -Level Hash -UserPEs -Audit -Fallback Hash
-Write-Host "Politica de AUDITORIA generada: $OutputPath ($($targets.Count) driver(s)). Revisala antes de desplegar."
-Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
+try {
+    $i = 0
+    foreach ($t in $targets) {
+        $i++
+        $leaf = Split-Path -Path $t.Path -Leaf
+        $destFile = Join-Path $tmpDir ("{0:D4}_{1}" -f $i, $leaf)
+        Copy-Item -LiteralPath $t.Path -Destination $destFile -ErrorAction SilentlyContinue
+    }
+
+    New-CIPolicy -FilePath $OutputPath -ScanPath $tmpDir -Level Hash -UserPEs -Audit -Fallback Hash
+    Write-Output "Politica de AUDITORIA generada: $OutputPath ($($targets.Count) driver(s)). Revisala antes de desplegar."
+}
+finally {
+    if (Test-Path -LiteralPath $tmpDir) {
+        Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+

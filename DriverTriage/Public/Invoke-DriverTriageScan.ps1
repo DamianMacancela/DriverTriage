@@ -55,6 +55,8 @@ function Invoke-DriverTriageScan {
             Subsystem            = $info.Subsystem
             IsDriverLike         = $info.IsDriverLike
             ImportParseTruncated = $info.ImportParseTruncated
+            HasRWXSection        = $info.HasRWXSection
+            RWXSections          = $info.RWXSections
             CapabilityHits       = $cap.Hits
             CapabilitySubtotal   = $cap.Subtotal
             Exposure             = $exp
@@ -65,6 +67,11 @@ function Invoke-DriverTriageScan {
             KnownListMatch       = $known
         }
         $results.Add($result)
+
+        if ($info.HasRWXSection) {
+            $findings.Add((ConvertTo-DtFinding -Rule 'DT004' -Title "Seccion ejecutable y modificable (RWX) detectada" -Severity 'High' -Confidence 'Confirmed' `
+                -Path $f.FullName -Hash $info.Sha256 -Evidence "Secciones RWX: $(($info.RWXSections) -join ', '). Violacion del principio W^X en espacio de kernel." -Mitre 'T1055'))
+        }
 
         if ($known.Matched -and $known.MatchType -eq 'Hash') {
             $findings.Add((ConvertTo-DtFinding -Rule 'DT002' -Title "Driver vulnerable conocido (coincidencia por hash)" -Severity 'Critical' -Confidence 'Confirmed' `
@@ -94,7 +101,7 @@ function Invoke-DriverTriageScan {
     $jsonPath = Join-Path $resolvedOutDir 'findings.json'
     $htmlPath = Join-Path $resolvedOutDir 'report.html'
 
-    $resultsForJson = $results | Select-Object Path, FileName, Sha256, FileSizeBytes, Is64Bit, Subsystem, IsDriverLike, ImportParseTruncated, CapabilityHits, CapabilitySubtotal, Exposure, Trust, Score, Severity, Breakdown, KnownListMatch
+    $resultsForJson = $results | Select-Object Path, FileName, Sha256, FileSizeBytes, Is64Bit, Subsystem, IsDriverLike, ImportParseTruncated, HasRWXSection, RWXSections, CapabilityHits, CapabilitySubtotal, Exposure, Trust, Score, Severity, Breakdown, KnownListMatch
     ConvertTo-Json -InputObject $resultsForJson -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
     Export-DriverTriageReport -Result $results -Path $htmlPath
 

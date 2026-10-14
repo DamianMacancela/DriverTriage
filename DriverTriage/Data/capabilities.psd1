@@ -21,6 +21,13 @@
         'ZwSetValueKey'                = @{ Weight = 1; Category = 'RegistryWrite';      Mitre = 'T1112' }
         'ZwDeleteValueKey'             = @{ Weight = 1; Category = 'RegistryWrite';      Mitre = 'T1112' }
         'IoAllocateMdl'                = @{ Weight = 1; Category = 'MdlMapping';         Mitre = 'T1055' }
+        'MmGetSystemRoutineAddress'    = @{ Weight = 3; Category = 'DynamicResolution';  Mitre = 'T1106' }
+        'ZwLoadDriver'                 = @{ Weight = 4; Category = 'DriverLoad';         Mitre = 'T1543.003' }
+    }
+
+    # Anomalias estructurales en el binario PE (violacion del principio W^X)
+    StructuralWeights = @{
+        RWXSection = @{ Weight = 4; Category = 'WritableExecutableSection'; Mitre = 'T1055' }
     }
 
     # Importaciones que solo sirven para la heuristica de EXPOSICION (no suman puntaje de capacidad por si solas).

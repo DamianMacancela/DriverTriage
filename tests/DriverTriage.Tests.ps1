@@ -2,14 +2,15 @@ Describe 'DriverTriage' {
     BeforeAll {
         . (Join-Path $PSScriptRoot 'Helpers/New-SyntheticDriverPE.ps1')
         Import-Module (Join-Path $PSScriptRoot '../DriverTriage/DriverTriage.psd1') -Force
-        $script:Data = Join-Path $PSScriptRoot 'data'
+        $script:Data = Join-Path $TestDrive 'fixtures'
+        if (-not (Test-Path -LiteralPath $script:Data)) { New-Item -ItemType Directory -Path $script:Data -Force | Out-Null }
         $script:Vuln = Join-Path $script:Data 'vulnerable-like.sys'
         $script:Benign = Join-Path $script:Data 'benign-like.sys'
-        if (-not (Test-Path $script:Vuln)) {
+        if (-not (Test-Path -LiteralPath $script:Vuln)) {
             $vulnImports = @(@{ Dll = 'ntoskrnl.exe'; Functions = @('MmMapIoSpace', 'ZwTerminateProcess', 'IoCreateDevice', 'ZwOpenProcess') }, @{ Dll = 'hal.dll'; Functions = @('READ_PORT_UCHAR') })
             New-SyntheticDriverPE -Path $script:Vuln -Imports $vulnImports -WideStrings @('\Device\PhysicalMemory') -OpcodeSequences @(, [byte[]](0x0F, 0x32)) | Out-Null
         }
-        if (-not (Test-Path $script:Benign)) {
+        if (-not (Test-Path -LiteralPath $script:Benign)) {
             $benignImports = @(@{ Dll = 'ntoskrnl.exe'; Functions = @('ZwCreateFile', 'ZwWriteFile', 'IoCreateDeviceSecure', 'IoCreateSymbolicLink') })
             New-SyntheticDriverPE -Path $script:Benign -Imports $benignImports | Out-Null
         }
@@ -70,7 +71,7 @@ Describe 'DriverTriage' {
             Copy-Item -LiteralPath $script:Vuln -Destination $copy
             $list = Join-Path $TestDrive 'known2.csv'
             "Name,Sha256,Source,Note`nrtcore64.sys,0000000000000000000000000000000000000000000000000000000000000000,test,nota" | Set-Content -LiteralPath $list
-            $k = Compare-DriverAgainstKnownList -Path $copy -Sha256 (Get-FileHash $copy -Algorithm SHA256).Hash -ListPath $list
+            $k = Compare-DriverAgainstKnownList -Path $copy -Sha256 (Get-FileHash -LiteralPath $copy -Algorithm SHA256).Hash -ListPath $list
             $k.Matched | Should -Be $true
             $k.MatchType | Should -Be 'FileName'
             $k.Confidence | Should -Be 'Heuristic'
@@ -112,6 +113,32 @@ Describe 'DriverTriage' {
             '{"vulnerable-like.sys": true, "benign-like.sys": false}' | Set-Content -LiteralPath $labels
             $m = Measure-DriverTriageAccuracy -Result $script:Result.Results -LabelsPath $labels
             ($m.AblationByCategory | Where-Object CategoryRemoved -eq 'PhysicalMemoryMap').ContributionToSeparation | Should -BeGreaterThan 0
+        }
+    }
+
+    Context 'Anomalias estructurales y resolucion dinamica' {
+        It 'detecta MmGetSystemRoutineAddress y ZwLoadDriver como capacidades de riesgo' {
+            $info = [pscustomobject]@{
+                ImportFunctionNames = @('MmGetSystemRoutineAddress', 'ZwLoadDriver')
+                RawBytes = $null
+                Sections = @()
+            }
+            $cap = Get-DriverCapabilityScore -Info $info
+            $cap.Subtotal | Should -Be 7
+            ($cap.Hits | Where-Object Detail -eq 'MmGetSystemRoutineAddress').Category | Should -Be 'DynamicResolution'
+            ($cap.Hits | Where-Object Detail -eq 'ZwLoadDriver').Category | Should -Be 'DriverLoad'
+        }
+        It 'detecta y puntua secciones RWX que violan W^X' {
+            $secNormal = [pscustomobject]@{ Name = '.text'; Characteristics = [uint32]0x60000020L; IsRWX = $false }
+            $secRWX    = [pscustomobject]@{ Name = '.rwx';  Characteristics = [uint32]0xE0000020L; IsRWX = $true }
+            $info = [pscustomobject]@{
+                ImportFunctionNames = @()
+                RawBytes = $null
+                Sections = @($secNormal, $secRWX)
+            }
+            $cap = Get-DriverCapabilityScore -Info $info
+            $cap.Subtotal | Should -Be 4
+            ($cap.Hits | Where-Object Source -eq 'Section').Category | Should -Be 'WritableExecutableSection'
         }
     }
 

@@ -15,20 +15,19 @@ puntaje = (suma de pesos de capacidad detectada) x multiplicador_de_exposicion x
 
 | Componente | Fuente de la señal | Riesgo de falso positivo |
 |---|---|---|
-| Capacidad (imports) | Tabla de importacion (parser propio, ver `Private/PEParser.cs`) | Bajo: el nombre importado es exacto, pero su USO real no se verifica (ver Limitaciones) |
-| Capacidad (cadenas) | Busqueda de literales ASCII/UTF-16LE en todo el archivo | Bajo-medio: la cadena puede estar en un comentario o en codigo muerto |
-| Capacidad (opcodes) | Busqueda de secuencias de bytes SOLO en secciones ejecutables | **Alto**: no respeta limites de instruccion; un byte de un operando puede coincidir por azar. Peso deliberadamente bajo (1-2) |
-| Exposicion | Presencia de `IoCreateDevice` vs `IoCreateDeviceSecure` | Medio: heuristica de imports, no de flujo de control real |
-| Confianza | `Get-AuthenticodeSignature` (solo Windows) | La verificacion no consulta revocacion al momento de carga real |
+| Capacidad (imports) | Tabla de importación (parser C# en `Private/PEParser.cs`, envuelto por `Private/Native.ps1`) | Bajo: el nombre importado es exacto, pero su USO real no se verifica (ver Limitaciones) |
+| Capacidad (cadenas) | Búsqueda de literales ASCII/UTF-16LE en todo el archivo | Bajo-medio: la cadena puede estar en un comentario o en código muerto |
+| Capacidad (opcodes) | Búsqueda de secuencias de bytes SOLO en secciones ejecutables | **Alto**: no respeta límites de instrucción; un byte de un operando puede coincidir por azar. Peso deliberadamente bajo (1-2) |
+| Capacidad (estructura PE)| Detección de secciones RWX (violación de W^X: ejecutables y modificables) | Bajo: anomalía estructural verificable directamente en las cabeceras de sección |
+| Exposición | Presencia de `IoCreateDevice` vs `IoCreateDeviceSecure` | Medio: heurística de imports, no de flujo de control real |
+| Confianza | `Get-AuthenticodeSignature` (solo Windows) | La verificación no consulta revocación al momento de carga real |
 
 Los pesos y umbrales estan en `DriverTriage/Data/capabilities.psd1`. Son **hipotesis de partida**, no
 resultados medidos. Ajustalos y vuelve a evaluar con `Measure-DriverTriageAccuracy`.
 
 ## Limitaciones conocidas (documentadas a proposito, no ocultas)
 
-1. **Resolucion dinamica de APIs.** Un driver que resuelve `MmMapIoSpace` en tiempo de ejecucion via
-   `MmGetSystemRoutineAddress` no aparece en la tabla de importacion y evade la deteccion por capacidad.
-   Mitigacion futura: decompilar con Ghidra/IDA y rastrear referencias a cadenas de nombres de funcion.
+1. **Resolucion dinamica de APIs.** Si un driver intenta resolver funciones en tiempo de ejecucion, DriverTriage penaliza la presencia de `MmGetSystemRoutineAddress` (T1106) y `ZwLoadDriver` (T1543.003) para evitar el absorbente cero en la ecuacion de riesgo. No obstante, si el binario resuelve APIs ofuscadas mediante hashing de nombres o barrido manual de memoria, la tabla de importacion no reflejara la funcion final. Mitigacion futura: rastreo de flujo de datos y decompilacion headless (Ghidra).
 2. **Exposicion por imports, no por flujo de control.** `IoCreateDeviceSecure` no garantiza un SDDL
    restrictivo; un driver puede usarlo con un descriptor de seguridad permisivo y seguir siendo explotable.
 3. **Opcodes sin desensamblado real.** El escaneo de bytes puede coincidir dentro de una instruccion mas

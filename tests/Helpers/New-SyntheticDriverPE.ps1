@@ -1,6 +1,6 @@
 # Construye un PE64 minimo y valido en bytes, SOLO para generar fixtures de prueba.
 # No es un cargador ni un enlazador real: basta con que sea internamente consistente
-# para que nuestro propio parser (Private/Native.ps1) lo lea correctamente.
+# para que nuestro propio parser PE (Private/PEParser.cs, expuesto mediante Private/Native.ps1) lo lea correctamente.
 # No se distribuye ningun binario de terceros ni de driver real: todo el contenido es sintetico.
 
 function New-SyntheticDriverPE {
@@ -140,8 +140,8 @@ function New-SyntheticDriverPE {
     Add-U32 $file 0                            # PointerToSymbolTable
     Add-U32 $file 0                            # NumberOfSymbols
     Add-U16 $file 240                          # SizeOfOptionalHeader (IMAGE_OPTIONAL_HEADER64)
-    $characteristics = 0x0002 -bor 0x0020 -bor 0x0002   # EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE
-    Add-U16 $file ([uint16]0x0022)
+    [uint16]$characteristics = 0x0002 -bor 0x0020   # IMAGE_FILE_EXECUTABLE_IMAGE | IMAGE_FILE_LARGE_ADDRESS_AWARE (0x0022)
+    Add-U16 $file $characteristics
 
     # Optional header 64
     Add-U16 $file 0x20B                        # Magic PE32+

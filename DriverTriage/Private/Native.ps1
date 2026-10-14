@@ -30,6 +30,7 @@ function Read-DriverPEInfo {
             PointerToRawData = $s.PointerToRawData
             IsExecutable     = $s.IsExecutable
             IsWritable       = $s.IsWritable
+            IsRWX            = $s.IsRWX
         }
     }
 
@@ -40,6 +41,7 @@ function Read-DriverPEInfo {
         [pscustomobject][ordered]@{ Dll = $m.DllName; Functions = @($funcs) }
     }
     $allFunctionNames = @($r.Imports | ForEach-Object { $_.Functions } | Where-Object { -not $_.IsOrdinal } | ForEach-Object { $_.Name })
+    $rwxSecs = @($sections | Where-Object { $_.IsRWX } | ForEach-Object { $_.Name })
 
     [pscustomobject][ordered]@{
         Success               = $true
@@ -52,6 +54,8 @@ function Read-DriverPEInfo {
         TimeDateStamp         = $r.TimeDateStamp
         HasSecurityDirectory  = $r.HasSecurityDirectory
         ImportParseTruncated  = $r.ImportParseTruncated
+        HasRWXSection         = [bool]($rwxSecs.Count -gt 0)
+        RWXSections           = $rwxSecs
         Sections              = @($sections)
         Imports               = @($imports)
         ImportFunctionNames   = $allFunctionNames
